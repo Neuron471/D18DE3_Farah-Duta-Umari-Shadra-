@@ -7,8 +7,8 @@
 ```
 ## docker-build			- Build Docker Images (amd64) including its inter-container network.
 ## docker-build-arm		- Build Docker Images (arm64) including its inter-container network.
-## kafka  				- Run a kafka container
-## spark  				- Run a Spark cluster, rebuild the postgres container, then create the destination tables
+## kafka  		- Run a kafka container
+## spark  		- Run a Spark cluster, rebuild the postgres container, then create the destination tables
 ## spark-produce  		- Run a faker produce data to kafka
 ## spark-consume		- Run a code for listen kafka topic
 

@@ -1,3 +1,4 @@
+
 # Import modul dan pustaka yang diperlukan
 import pyspark
 import os
@@ -52,10 +53,8 @@ stream_df = (
 
 # Memproses nilai dari kolom 'value' sebagai JSON sesuai dengan skema Kafka yang telah didefinisikan sebelumnya
 parsed_df = stream_df.select(from_json(col("value").cast("string"), kafka_schema).alias("parsed_value")) \
-    .select("parsed_value.*")
-
-# Mengubah kolom 'ts' menjadi tipe data Timestamp
-parsed_df = parsed_df.withColumn("ts", from_unixtime("ts").cast(TimestampType()))
+    .select("parsed_value.*") \
+    .withColumn("ts", from_unixtime("ts").cast(TimestampType()))
 
 # Definisi skema hasil akhir dari proses agregasi
 result_schema = StructType([
@@ -81,13 +80,16 @@ def process_batch(df, epoch_id):
     print(f"Results for Batch {epoch_id}:")
     df.show(truncate=False)
 
-    '''Dalam kode yang diberikan, digunakan windowing dengan tipe 'Tumbling Window
-    Dalam kasus aplikasi yang ingin menghitung total penjualan per hari seperti pada
-    contoh kode yang diberikan, penggunaan tumbling window dapat menjadi pilihan yang
-    baik. Karena perhitungan dilakukan untuk setiap jendela waktu diskrit yang tidak
-    tumpang tindih (dalam contoh tersebut, per hari), ini memungkinkan untuk analisis
-    agregatif yang cukup akurat tanpa membebani sumber daya komputasi secara berlebihan.
-    '''
+    # Melakukan penyimpanan ke dalam tabel PostgreSQL
+    df.write \
+        .format("jdbc") \
+        .option("url", "jdbc:postgresql://ep-winter-band-34900791.ap-southeast-1.aws.neon.tech:5432/dbfurniture_sales") \
+        .option("dbtable", "furniture") \
+        .option("user", "farahduta7") \
+        .option("password", "Mf9qmk0iKZhU") \
+        .mode("append") \
+        .save()
+
     # Melakukan agregasi data dalam jendela waktu 1 hari
     # Mengatur watermark pada kolom waktu ('ts') dengan toleransi keterlambatan 60 menit
     windowed_df = df \
@@ -100,15 +102,18 @@ def process_batch(df, epoch_id):
     # Menampilkan DataFrame hasil agregasi dalam jendela waktu
     print("Windowed DataFrame:")
     windowed_df.show(truncate=False)
+    
+    # Caching DataFrame windowed_df
+    windowed_df.cache()
 
     # Menambahkan kolom 'order_id' dengan nilai null ke DataFrame 'windowed_df'
     windowed_df = windowed_df.withColumn("order_id", lit(None).cast(StringType())) \
-    .withColumn("customer_id", lit(None).cast(IntegerType())) \
-    .withColumn("furniture", lit(None).cast(StringType())) \
-    .withColumn("color", lit(None).cast(StringType())) \
-    .withColumn("price", lit(None).cast(IntegerType())) \
-    .withColumn("ts", lit(None).cast(IntegerType())) \
-    .withColumn("ts", from_unixtime("ts").cast(TimestampType()))
+        .withColumn("customer_id", lit(None).cast(IntegerType())) \
+        .withColumn("furniture", lit(None).cast(StringType())) \
+        .withColumn("color", lit(None).cast(StringType())) \
+        .withColumn("price", lit(None).cast(IntegerType())) \
+        .withColumn("ts", lit(None).cast(IntegerType())) \
+        .withColumn("ts", from_unixtime("ts").cast(TimestampType()))
 
     # Menggabungkan DataFrame 'windowed_df' ke dalam 'result_df' untuk akumulasi hasil agregasi
     result_df = result_df.union(windowed_df.select(
@@ -134,3 +139,12 @@ foreach_query = parsed_df.writeStream \
 
 # Menunggu hingga proses streaming berakhir
 foreach_query.awaitTermination()
+
+'''
+    Dalam kode yang diberikan, digunakan windowing dengan tipe 'Tumbling Window
+    Dalam kasus aplikasi yang ingin menghitung total penjualan per hari seperti pada
+    contoh kode yang diberikan, penggunaan tumbling window dapat menjadi pilihan yang
+    baik. Karena perhitungan dilakukan untuk setiap jendela waktu diskrit yang tidak
+    tumpang tindih (dalam contoh tersebut, per hari), ini memungkinkan untuk analisis
+    agregatif yang cukup akurat tanpa membebani sumber daya komputasi secara berlebihan.
+'''
